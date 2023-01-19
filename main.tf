@@ -1,54 +1,90 @@
-terraform {
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.16"
-    }
-  }
+locals {
+  vpc_cidr = "10.0.0.0/16"
 
-  required_version = ">= 1.2.0"
+  public_cidr = ["10.0.0.0/24", "10.0.1.0/24"]
+
+  private_cidr = ["10.0.2.0/24", "10.0.3.0/24"]
+
+  availability_zones = ["us-east-1a", "us-east-1b"]
 }
 
-provider "aws" {
-  region  = "us-east-1"
+resource "aws_vpc" "main" {
+  cidr_block = local.vpc_cidr
 }
 
-resource "aws_vpc" "my_vpc" {
-  cidr_block = "172.16.0.0/16"
+resource "aws_subnet" "public" {
+  count = 2
+
+  vpc_id     = aws_vpc.main.id
+  cidr_block = local.public_cidr[count.index]
+
+  availability_zone = local.availability_zones[count.index]
 
   tags = {
-    Name = "tf-example"
+    Name = "public${count.index+1}"
   }
 }
 
-resource "aws_subnet" "my_subnet" {
-  vpc_id            = aws_vpc.my_vpc.id
-  cidr_block        = "172.16.10.0/24"
+resource "aws_subnet" "private" {
+  count = 2
+
+  vpc_id     = aws_vpc.main.id
+  cidr_block = local.private_cidr[count.index]
+
+  availability_zone = local.availability_zones[count.index]
 
   tags = {
-    Name = "tf-example"
+    Name = "private${count.index+1}"
   }
 }
 
-resource "aws_network_interface" "foo" {
-  subnet_id   = aws_subnet.my_subnet.id
-  private_ips = ["172.16.10.100"]
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+}
 
-  tags = {
-    Name = "primary_network_interface"
+resource "aws_route_table" "public" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
   }
 }
 
-resource "aws_instance" "foo" {
-  ami           = "ami-0b5eea76982371e91"
-  instance_type = "t2.micro"
+resource "aws_route_table_association" "public" {
+  count = 2
 
-  network_interface {
-    network_interface_id = aws_network_interface.foo.id
-    device_index         = 0
-  }
+  subnet_id      = aws_subnet.public[count.index].id
+  route_table_id = aws_route_table.public.id
+}
 
-  credit_specification {
-    cpu_credits = "unlimited"
+resource "aws_eip" "nat" {
+  count = 2
+
+  vpc = true
+}
+
+resource "aws_nat_gateway" "nat" {
+  count = 2
+
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
+}
+
+resource "aws_route_table" "private" {
+  count = 2
+
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.nat[count.index].id
   }
+}
+
+resource "aws_route_table_association" "private" {
+  count = 2
+
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private[count.index].id
 }
