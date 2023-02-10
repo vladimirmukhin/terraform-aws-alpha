@@ -24,7 +24,7 @@ resource "aws_security_group" "public" {
 }
 
 resource "aws_instance" "public" {
-  ami                         = "ami-0cff7528ff583bf9a"
+  ami                         = data.aws_ami.amazonlinux.id
   instance_type               = "t3.micro"
   associate_public_ip_address = true
   key_name                    = "main"
@@ -62,7 +62,7 @@ resource "aws_security_group" "private" {
 }
 
 resource "aws_instance" "private" {
-  ami                    = "ami-0cff7528ff583bf9a"
+  ami                    = data.aws_ami.amazonlinux.id
   instance_type          = "t3.micro"
   key_name               = "main"
   vpc_security_group_ids = [aws_security_group.private.id]
