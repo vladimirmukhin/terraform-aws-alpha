@@ -1,7 +1,7 @@
 resource "aws_security_group" "public" {
   name        = "${var.env_code}-public"
   description = "Public security group"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.terraform_remote_state.level1.outputs.vpc_id
 
   ingress {
     description = "SSH from my public IP"
@@ -37,7 +37,7 @@ resource "aws_instance" "public" {
   associate_public_ip_address = true
   key_name                    = "main"
   vpc_security_group_ids      = [aws_security_group.public.id]
-  subnet_id                   = aws_subnet.public[0].id
+  subnet_id                   = data.terraform_remote_state.level1.outputs.public_subnet_ids
 
   user_data = file("user-data.sh")
 
@@ -49,14 +49,14 @@ resource "aws_instance" "public" {
 resource "aws_security_group" "private" {
   name        = "${var.env_code}-private"
   description = "Private security group"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.terraform_remote_state.level1.outputs.vpc_id
 
   ingress {
     description = "SSH from VPC"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = [var.vpc_cidr]
+    cidr_blocks = [data.terraform_remote_state.level1.outputs.vpc_cidr]
   }
 
   egress {
@@ -71,12 +71,12 @@ resource "aws_security_group" "private" {
   }
 }
 
-resource "aws_instance" "private" {
+resource "aws_instance" "private-instance" {
   ami                    = data.aws_ami.amazonlinux.id
   instance_type          = "t3.micro"
   key_name               = "main"
   vpc_security_group_ids = [aws_security_group.private.id]
-  subnet_id              = aws_subnet.private[0].id
+  subnet_id              = data.terraform_remote_state.level1.outputs.private_subnet_ids
 
   tags = {
     Name = "${var.env_code}-private"
