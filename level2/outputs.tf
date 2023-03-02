@@ -1,3 +1,3 @@
-output load_balancer_url {
-  value = aws_lb.main.dns_name
+output "load_balancer_url" {
+  value = module.load_balancer.load_balancer_url
 }
